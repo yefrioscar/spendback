@@ -1,18 +1,38 @@
-import { CognitoUserPoolTriggerHandler, CognitoUserPoolTriggerEvent } from 'aws-lambda';
+import {
+    CognitoUserPoolTriggerHandler,
+    CognitoUserPoolTriggerEvent,
+} from "aws-lambda";
 import { randomDigits } from "crypto-secure-random-digit";
-import { SES } from "aws-sdk";
+import * as mail from "@sendgrid/mail";
+import * as AWS from 'aws-sdk';
 
-const ses = new SES();
+mail.setApiKey(
+    "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"
+);
 
-export const handler: CognitoUserPoolTriggerHandler = async (event: CognitoUserPoolTriggerEvent) => {
+const sns = new AWS.SNS({ apiVersion: '2010-03-31' });
+
+export const handler: CognitoUserPoolTriggerHandler = async (
+    event: CognitoUserPoolTriggerEvent
+) => {
     let secretLoginCode: string;
-    console.log('ATTR',event.request.userAttributes);
+    console.log("ATTR", event.request.userAttributes);
+
+    let isEmail = event.request.userAttributes.email || false;
 
     if (!event.request.session || !event.request.session.length) {
         // This is a new auth session
         // Generate a new secret login code and mail it to the user
-        secretLoginCode = randomDigits(4).join("");
-        await sendEmail(event.request.userAttributes.email, secretLoginCode);
+        secretLoginCode = randomDigits(6).join("");
+
+        if (isEmail) {
+            await sendEmail(
+                event.request.userAttributes.email,
+                secretLoginCode
+            );
+        } else {
+            await sendSms(event.request.userAttributes.phone_number, secretLoginCode)
+        }
     } else {
         // There's an existing session. Don't generate new digits but
         // re-use the code from the current session. This allows the user to
@@ -25,9 +45,11 @@ export const handler: CognitoUserPoolTriggerHandler = async (event: CognitoUserP
     }
 
     // This is sent back to the client app
-    event.response.publicChallengeParameters = {
-        email: event.request.userAttributes.email,
-    };
+    event.response.publicChallengeParameters = isEmail
+        ? {
+              email: event.request.userAttributes.email,
+          }
+        : { phone_number: event.request.userAttributes.phone_number };
 
     // Add the secret login code to the private challenge parameters
     // so it can be verified by the "Verify Auth Challenge Response" trigger
@@ -41,26 +63,53 @@ export const handler: CognitoUserPoolTriggerHandler = async (event: CognitoUserP
 };
 
 async function sendEmail(emailAddress: string, secretLoginCode: string) {
-    const params: SES.SendEmailRequest = {
-        Destination: { ToAddresses: [emailAddress] },
-        Message: {
-            Body: {
-                Html: {
-                    Charset: "UTF-8",
-                    Data: `<html><body><p>This is your secret login code:</p>
-                           <h3>${secretLoginCode}</h3></body></html>`,
-                },
-                Text: {
-                    Charset: "UTF-8",
-                    Data: `Your secret login code: ${secretLoginCode}`,
-                },
-            },
-            Subject: {
-                Charset: "UTF-8",
-                Data: "Your secret login code",
-            },
-        },
-        Source: process.env.SES_FROM_ADDRESS!,
+    const config = {
+        email: "no-reply@spend-secure.com",
+        name: "Spend Team",
+        template_id: "d-14b75e7e581c42948449bd3d89baf1b9",
     };
-    await ses.sendEmail(params).promise();
+
+    const options = {
+        personalizations: [
+            {
+                to: [
+                    {
+                        email: emailAddress,
+                        name: "",
+                    },
+                ],
+                dynamic_template_data: {
+                    OTPCode: secretLoginCode,
+                    subject: `Your One Time Password`,
+                    preheader: "This is valid por the next 3 minutes.",
+                },
+            },
+        ],
+        from: {
+            email: config.email,
+            name: config.name,
+        },
+        reply_to: {
+            email: config.email,
+            name: config.name,
+        },
+        templateId: config.template_id,
+    };
+
+    await mail.send(options);
+}
+
+async function sendSms(phone_number: string, secretLoginCode: string) {
+    var params = {
+        Message: `Your One Time password is: ${secretLoginCode}`,
+        PhoneNumber: phone_number,
+        MessageAttributes: {
+            'AWS.SNS.SMS.SMSType': {
+                'DataType': 'String',
+                'StringValue': 'Transactional'
+            }
+        }
+    };
+
+    await sns.publish(params).promise();
 }

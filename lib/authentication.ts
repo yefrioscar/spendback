@@ -2,10 +2,10 @@ import * as cdk from "@aws-cdk/core";
 import {
     UserPool,
     UserPoolClient,
-    CfnUserPoolIdentityProvider,
     CfnIdentityPool,
 } from "@aws-cdk/aws-cognito";
 import * as lambda from "@aws-cdk/aws-lambda";
+import * as iam from "@aws-cdk/aws-iam";
 
 export class Authentication extends cdk.Construct {
     constructor(scope: cdk.Construct, id: string, props?: any) {
@@ -26,10 +26,20 @@ export class Authentication extends cdk.Construct {
             "createAuthChallenge",
             {
                 runtime: lambda.Runtime.NODEJS_12_X,
-                handler: "createAuthChallenge.handler",
-                code: lambda.Code.fromAsset("lambda/authentication"),
+                handler: "lambda/authentication/createAuthChallenge.handler",
+                code: lambda.Code.fromAsset("lambdas.zip")
             }
         );
+
+        let snsSendSms = new iam.PolicyStatement({
+            resources: ['*'],
+            actions: ['sns:publish'],
+            effect: iam.Effect.ALLOW
+        })
+        
+       createAuthChallenge.addToRolePolicy(snsSendSms);
+ 
+
 
         const verifyAuthChallenge = new lambda.Function(
             this,
@@ -37,6 +47,16 @@ export class Authentication extends cdk.Construct {
             {
                 runtime: lambda.Runtime.NODEJS_12_X,
                 handler: "verifyAuthChallenge.handler",
+                code: lambda.Code.fromAsset("lambda/authentication"),
+            }
+        );
+
+        const preSignUpAutoVerifyAccount = new lambda.Function(
+            this,
+            "preSignUpAutoVerifyAccount",
+            {
+                runtime: lambda.Runtime.NODEJS_12_X,
+                handler: "preSignUpAutoVerifyAccount.handler",
                 code: lambda.Code.fromAsset("lambda/authentication"),
             }
         );
@@ -51,7 +71,15 @@ export class Authentication extends cdk.Construct {
                 defineAuthChallenge: defineAuthChallenge,
                 createAuthChallenge: createAuthChallenge,
                 verifyAuthChallengeResponse: verifyAuthChallenge,
+                preSignUp: preSignUpAutoVerifyAccount
             },
+            selfSignUpEnabled: true,
+            passwordPolicy: {
+                minLength: 8,
+                requireLowercase: true,
+                requireUppercase: true,
+                requireDigits: true
+            }
         });
 
         const userPoolClient = new UserPoolClient(this, "myUserPoolClient", {
@@ -68,5 +96,9 @@ export class Authentication extends cdk.Construct {
                 },
             ],
         });
+
+
+
+        
     }
 }

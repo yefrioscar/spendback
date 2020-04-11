@@ -8,24 +8,27 @@
     "build": "tsc",
     "watch": "tsc -w",
     "test": "jest",
-    "cdk": "cdk"
+    "cdk": "cdk",
+    "deploy": "npm run build:all && cdk deploy",
+    "build:all": "npm run build && zip -r lambdas.zip lambda/* node_modules/*"
   },
   "devDependencies": {
-    "@aws-cdk/assert": "1.31.0",
+    "@aws-cdk/assert": "^1.32.2",
+    "@aws-cdk/aws-cognito": "^1.32.2",
+    "@aws-cdk/aws-iam": "^1.32.2",
+    "@aws-cdk/core": "^1.32.2",
+    "@types/aws-lambda": "^8.10.48",
     "@types/jest": "^24.0.22",
     "@types/node": "10.17.5",
+    "aws-cdk": "1.31.0",
+    "aws-lambda": "^1.0.5",
     "jest": "^24.9.0",
     "ts-jest": "^24.1.0",
-    "aws-cdk": "1.31.0",
     "ts-node": "^8.1.0",
     "typescript": "~3.7.2"
   },
   "dependencies": {
-    "@aws-cdk/aws-cognito": "^1.31.0",
-    "@aws-cdk/aws-lambda": "^1.31.0",
-    "@aws-cdk/core": "1.31.0",
-    "@types/aws-lambda": "^8.10.47",
-    "aws-lambda": "^1.0.5",
+    "@sendgrid/mail": "^7.0.0",
     "crypto-secure-random-digit": "^1.0.9",
     "source-map-support": "^0.5.16"
   }
