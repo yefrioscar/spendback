@@ -6,9 +6,7 @@ import { randomDigits } from "crypto-secure-random-digit";
 import * as mail from "@sendgrid/mail";
 import * as AWS from 'aws-sdk';
 
-mail.setApiKey(
-    "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"
-);
+mail.setApiKey('API_KEY');
 
 const sns = new AWS.SNS({ apiVersion: '2010-03-31' });
 
